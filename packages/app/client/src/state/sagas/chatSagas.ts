@@ -30,7 +30,6 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
-
 import * as Electron from 'electron';
 import { MenuItemConstructorOptions } from 'electron';
 import { Activity } from 'botframework-schema';
@@ -63,10 +62,11 @@ import {
 } from '@bfemulator/sdk-shared';
 import { createCognitiveServicesSpeechServicesPonyfillFactory, createDirectLine } from 'botframework-webchat';
 import { createStore as createWebChatStore } from 'botframework-webchat-core';
-import { call, ForkEffect, put, select, takeEvery } from 'redux-saga/effects';
+import { call, ForkEffect, put, select, takeEvery, fork } from 'redux-saga/effects';
 import { encode } from 'base64url';
 
 import { RootState } from '../store';
+import { ConversationQueue } from '../../utils/replayConversationQueue';
 
 export const getConversationIdFromDocumentId = (state: RootState, documentId: string) => {
   return (state.chat.chats[documentId] || { conversationId: null }).conversationId;
@@ -86,6 +86,14 @@ export const getCustomUserGUID = (state: RootState): string => {
 
 export const getServerUrl = (state: RootState): string => {
   return state.clientAwareSettings.serverUrl;
+};
+
+export const getChatStoreFromDocumentId = (state: RootState, documentId: string): string => {
+  return state.chat.webChatStores[documentId];
+};
+
+const handleQueue = async (queue: ConversationQueue): Promise<void> => {
+  await queue.processActivities();
 };
 
 interface BootstrapChatPayload {
@@ -280,13 +288,49 @@ export class ChatSagas {
     const { documentId, requireNewConversationId, requireNewUserId } = action.payload;
     const chat: ChatDocument = yield select(getChatFromDocumentId, documentId);
     const serverUrl = yield select(getServerUrl);
+    const activities: Activity[] = yield call(
+      [ConversationService, ConversationService.fetchActivitiesForAConversation],
+      serverUrl,
+      chat.conversationId
+    );
 
     if (chat.directLine) {
       chat.directLine.end();
     }
+
+    let conversationId;
+    if (requireNewConversationId) {
+      conversationId = `${uniqueId()}|${chat.mode}`;
+    } else {
+      // preserve the current conversation id
+      conversationId = chat.conversationId || `${uniqueId()}|${chat.mode}`;
+    }
+
     yield put(clearLog(documentId));
     yield put(setInspectorObjects(documentId, []));
-    yield put(webChatStoreUpdated(documentId, createWebChatStore())); // reset web chat store
+    const queue = new ConversationQueue(conversationId, activities);
+    const activityEmitter = queue.activityEmitter;
+    yield put(
+      webChatStoreUpdated(
+        documentId,
+        createWebChatStore({}, ({ dispatch }) => next => action => {
+          if (action.type === 'DIRECT_LINE/POST_ACTIVITY_FULFILLED') {
+            activityEmitter.emit('COMPLETED_ACTIVITY');
+          }
+          if (action.type === 'DIRECT_LINE/POST_ACTIVITY_REJECTED') {
+            activityEmitter.emit('COMPLETED_ACTIVITY');
+          }
+          if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
+            console.log(action.payload.activity);
+            activityEmitter.emit('INCOMING_ACTIVITY', action.payload.activity);
+          }
+          return next(action);
+        })
+      )
+    ); // reset web chat store
+    const webChatStore = yield select(getChatStoreFromDocumentId, documentId);
+    queue.updateStore(webChatStore);
+
     yield put(webSpeechFactoryUpdated(documentId, undefined)); // remove old speech token factory
 
     // re-init new directline object & update conversation object in server state
@@ -297,14 +341,6 @@ export class ChatSagas {
     } else {
       // use the previous id or the custom id from settings
       userId = chat.userId || (yield select(getCustomUserGUID));
-    }
-
-    let conversationId;
-    if (requireNewConversationId) {
-      conversationId = `${uniqueId()}|${chat.mode}`;
-    } else {
-      // preserve the current conversation id
-      conversationId = chat.conversationId || `${uniqueId()}|${chat.mode}`;
     }
 
     // update the main-side conversation object with conversation & user IDs,
@@ -381,6 +417,7 @@ export class ChatSagas {
 
       yield put(updatePendingSpeechTokenRetrieval(documentId, false));
     }
+    yield handleQueue(queue);
   }
 
   public static *sendInitialActivity(payload: any): Iterator<any> {
