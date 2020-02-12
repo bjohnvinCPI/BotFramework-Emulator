@@ -174,7 +174,7 @@ export class Conversation extends EventEmitter {
     }
 
     return {
-      activityId: activity.id,
+      updatedActivity: activity,
       response: resp,
       statusCode: status,
     };
@@ -562,7 +562,6 @@ export class Conversation extends EventEmitter {
     // internal tracking
     this.addActivityToQueue(activity);
     this.transcript = [...this.transcript, { type: 'activity add', activity }];
-
     return activity;
   }
 
