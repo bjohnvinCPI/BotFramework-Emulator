@@ -58,6 +58,7 @@ export enum ChatActions {
   updatePendingSpeechTokenRetrieval = 'CHAT/SPEECH/TOKEN/PENDING/UPDATE',
   webSpeechFactoryUpdated = 'CHAT/SPEECH/TOKEN/RETRIEVED',
   webChatStoreUpdated = 'CHAT/STORE/UPDATED',
+  dispatchWebchatActivity = 'CHAT/RESTART/DISPATCH_ACTIVITY',
 }
 
 export interface ActiveInspectorChangedPayload {
@@ -126,6 +127,11 @@ export interface RestartConversationPayload {
   documentId: string;
   requireNewConversationId: boolean;
   requireNewUserId: boolean;
+}
+
+export interface DispatchActivityToWebChatPayload {
+  activity: Activity;
+  documentId: string;
 }
 
 export interface ChatAction<T = any> extends Action {

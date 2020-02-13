@@ -66,7 +66,7 @@ import { call, ForkEffect, put, select, takeEvery, fork } from 'redux-saga/effec
 import { encode } from 'base64url';
 
 import { RootState } from '../store';
-import { ConversationQueue } from '../../utils/replayConversationQueue';
+import { ConversationQueue } from '../../utils/restartConversationQueue';
 
 export const getConversationIdFromDocumentId = (state: RootState, documentId: string) => {
   return (state.chat.chats[documentId] || { conversationId: null }).conversationId;
@@ -90,10 +90,6 @@ export const getServerUrl = (state: RootState): string => {
 
 export const getChatStoreFromDocumentId = (state: RootState, documentId: string): string => {
   return state.chat.webChatStores[documentId];
-};
-
-const handleQueue = async (queue: ConversationQueue): Promise<void> => {
-  await queue.processActivities();
 };
 
 interface BootstrapChatPayload {
@@ -306,30 +302,39 @@ export class ChatSagas {
       conversationId = chat.conversationId || `${uniqueId()}|${chat.mode}`;
     }
 
+    const replayQueue = new ConversationQueue(conversationId, activities, window.URL.createObjectURL);
+
     yield put(clearLog(documentId));
     yield put(setInspectorObjects(documentId, []));
-    const queue = new ConversationQueue(conversationId, activities);
-    const activityEmitter = queue.activityEmitter;
     yield put(
       webChatStoreUpdated(
         documentId,
         createWebChatStore({}, ({ dispatch }) => next => action => {
           if (action.type === 'DIRECT_LINE/POST_ACTIVITY_FULFILLED') {
-            activityEmitter.emit('COMPLETED_ACTIVITY');
+            console.log(action.payload.activity);
           }
           if (action.type === 'DIRECT_LINE/POST_ACTIVITY_REJECTED') {
-            activityEmitter.emit('COMPLETED_ACTIVITY');
+            console.log(action.payload.activity);
           }
           if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
-            console.log(action.payload.activity);
-            activityEmitter.emit('INCOMING_ACTIVITY', action.payload.activity);
+            let newActivity: Activity | undefined;
+            replayQueue.traverseRestartFlowMap(action.payload.activity);
+            if ((newActivity = replayQueue.getNextActivityInQueue())) {
+              dispatch({
+                type: 'DIRECT_LINE/POST_ACTIVITY',
+                payload: {
+                  newActivity,
+                },
+                meta: {
+                  method: 'keyboard',
+                },
+              });
+            }
           }
           return next(action);
         })
       )
-    ); // reset web chat store
-    const webChatStore = yield select(getChatStoreFromDocumentId, documentId);
-    queue.updateStore(webChatStore);
+    );
 
     yield put(webSpeechFactoryUpdated(documentId, undefined)); // remove old speech token factory
 
@@ -417,7 +422,6 @@ export class ChatSagas {
 
       yield put(updatePendingSpeechTokenRetrieval(documentId, false));
     }
-    yield handleQueue(queue);
   }
 
   public static *sendInitialActivity(payload: any): Iterator<any> {

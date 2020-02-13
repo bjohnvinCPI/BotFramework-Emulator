@@ -47,7 +47,6 @@ import { updateActivity } from './handlers/updateActivity';
 import { createUploadAttachmentHandler } from './handlers/uploadAttachment';
 import { createGetConversationsHandler } from './handlers/getConversations';
 import { createGetBotEndpointHandler } from './handlers/getBotEndpoint';
-import { replayConversation } from './handlers/replayConversation';
 import { getActivitiesForConversation } from './handlers/getActivitiesForConversation';
 
 export function mountConversationsRoutes(emulatorServer: EmulatorRestServer) {
