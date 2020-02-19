@@ -279,8 +279,9 @@ export class ChatSagas {
                   return next(action);
                 },
               });
+            } else {
+              return next(action);
             }
-            return next(action);
           })
         )
       );
@@ -370,42 +371,32 @@ export class ChatSagas {
             action.payload &&
             (action.type === `DIRECT_LINE/POST_ACTIVITY` || action.type === `DIRECT_LINE/INCOMING_ACTIVITY`)
           ) {
+            ChatSagas.wcActivityChannel.sendWcEvents({
+              documentId,
+              action,
+              cb: () => {
+                return next(action);
+              },
+            });
             if (action.type === `DIRECT_LINE/INCOMING_ACTIVITY`) {
               const nextActivity: Activity = conversationQueue.incomingActivity(action.payload.activity);
-              // next(action);
-              ChatSagas.wcActivityChannel.sendWcEvents({
-                documentId,
-                action,
-                cb: () => {
-                  next(action);
-                  if (nextActivity) {
-                    dispatch({
-                      type: 'DIRECT_LINE/POST_ACTIVITY',
-                      payload: {
-                        activity: {
-                          ...nextActivity,
-                        },
-                      },
-                      meta: {
-                        method: 'keyboard',
-                      },
-                    });
-                  }
-                },
-              });
+              if (nextActivity) {
+                dispatch({
+                  type: 'DIRECT_LINE/POST_ACTIVITY',
+                  payload: {
+                    activity: {
+                      ...nextActivity,
+                    },
+                  },
+                  meta: {
+                    method: 'keyboard',
+                  },
+                });
+              }
             }
-
-            if (action.type === `DIRECT_LINE/POST_ACTIVITY`) {
-              ChatSagas.wcActivityChannel.sendWcEvents({
-                documentId,
-                action,
-                cb: () => {
-                  next(action);
-                },
-              });
-            }
+          } else {
+            return next(action);
           }
-          return next(action);
         })
       )
     );
