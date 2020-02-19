@@ -322,8 +322,10 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
       if (state.chats[documentId].replayData.postActivitiesSlots) {
         postActivitiesSlots = [...state.chats[documentId].replayData.postActivitiesSlots];
       }
-
-      postActivitiesSlots.push(state.chats[documentId].replayData.incomingActivities.length);
+      const slot: number = state.chats[documentId].replayData.incomingActivities
+        ? state.chats[documentId].replayData.incomingActivities.length
+        : 0;
+      postActivitiesSlots.push(slot);
       state = {
         ...state,
         chats: {

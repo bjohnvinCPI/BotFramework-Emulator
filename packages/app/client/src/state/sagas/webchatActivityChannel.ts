@@ -34,16 +34,16 @@
 
 // import { Activity } from 'botframework-schema';
 import { eventChannel, Channel } from 'redux-saga';
+import { Action } from 'redux';
 
 export interface WebChatActivityChannel {
   sendWcEvents: (args: ChannelPayload) => void;
-  getWebchatChannelSubscriber: () => Channel<any>;
+  getWebchatChannelSubscriber: () => Channel<ChannelPayload>;
 }
 
 export interface ChannelPayload {
   documentId: string;
-  action: any;
-  cb?: () => any;
+  action: Action;
 }
 
 export function createWebchatActivityChannel(): WebChatActivityChannel {
@@ -56,7 +56,7 @@ export function createWebchatActivityChannel(): WebChatActivityChannel {
     }
   }
 
-  const getWebchatChannelSubscriber = () => {
+  const getWebchatChannelSubscriber = (): Channel<ChannelPayload> => {
     return eventChannel(emitter => {
       const self = {
         emitter,
@@ -68,7 +68,7 @@ export function createWebchatActivityChannel(): WebChatActivityChannel {
     });
   };
 
-  const sendWcEvents = (args: ChannelPayload) => {
+  const sendWcEvents = async (args: ChannelPayload) => {
     emitterBoundWcStore.call(null, { ...args });
   };
 

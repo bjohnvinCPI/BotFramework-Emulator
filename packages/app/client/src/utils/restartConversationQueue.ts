@@ -39,6 +39,7 @@ export class ConversationQueue {
   private replayDataFromOldConversation: ChatReplayData;
   private receivedActivities: Activity[];
   private conversationId: string;
+  private nextActivityToBePosted = null;
 
   // private createObjectUrlFromWindow: Function;
 
@@ -49,6 +50,9 @@ export class ConversationQueue {
     this.conversationId = conversationId;
     this.replayDataFromOldConversation = chatReplayData;
     this.receivedActivities = [];
+
+    this.checkIfActivityToBePosted = this.checkIfActivityToBePosted.bind(this);
+    this.incomingActivity = this.incomingActivity.bind(this);
   }
 
   private static dataURLtoFile(dataurl: string, filename: string) {
@@ -65,58 +69,68 @@ export class ConversationQueue {
     return new File([u8arr], filename, { type: mime });
   }
 
-  public incomingActivity(activity: Activity): Activity {
-    this.receivedActivities.push(activity);
-
-    if (activity.channelData && !activity.replyToId) {
-      const matchIndexes: number[] = activity.channelData.matchIndexes;
-      if (matchIndexes) {
-        matchIndexes.forEach((index: number) => {
-          if (this.receivedActivities[index].replyToId === activity.id) {
-            console.log('ON TRACK');
-          } else {
-            console.log('OFF TRACK');
-          }
-        });
-      }
+  private checkIfActivityToBePosted() {
+    if (!this.replayDataFromOldConversation.postActivitiesSlots.includes(this.receivedActivities.length)) {
+      this.nextActivityToBePosted = undefined;
+      return;
     }
 
-    if (this.replayDataFromOldConversation.postActivitiesSlots.includes(this.receivedActivities.length)) {
-      const activity: Activity = this.userActivities.shift();
-      const matchIndexes = [];
-      this.replayDataFromOldConversation.incomingActivities.forEach(
-        (incomingActivity: HasIdAndReplyId, index: number) => {
-          if (incomingActivity.replyToId === activity.id) {
-            matchIndexes.push(index);
-          }
+    const activity: Activity = this.userActivities.shift();
+    const matchIndexes = [];
+    this.replayDataFromOldConversation.incomingActivities.forEach(
+      (incomingActivity: HasIdAndReplyId, index: number) => {
+        if (incomingActivity.replyToId === activity.id) {
+          matchIndexes.push(index);
         }
-      );
-
-      if (activity.attachments && activity.attachments.length >= 1) {
-        const mutatedAttachments = activity.attachments.map(attachment => {
-          const fileFormat: File = ConversationQueue.dataURLtoFile(attachment.contentUrl, attachment.name);
-          return {
-            ...attachment,
-            contentUrl: window.URL.createObjectURL(fileFormat),
-          };
-        });
-        activity.attachments = mutatedAttachments;
       }
-
-      if (activity) {
-        activity.conversation = {
-          ...activity.conversation,
-          id: this.conversationId,
+    );
+    if (activity.attachments && activity.attachments.length >= 1) {
+      const mutatedAttachments = activity.attachments.map(attachment => {
+        const fileFormat: File = ConversationQueue.dataURLtoFile(attachment.contentUrl, attachment.name);
+        return {
+          ...attachment,
+          contentUrl: window.URL.createObjectURL(fileFormat),
         };
-        activity.channelData = {
-          ...activity.channelData,
-          originalActivityId: activity.id,
-          matchIndexes,
-        };
-        delete activity.id;
-        return activity;
-      }
+      });
+      activity.attachments = mutatedAttachments;
     }
-    return undefined;
+
+    if (activity) {
+      activity.conversation = {
+        ...activity.conversation,
+        id: this.conversationId,
+      };
+      activity.channelData = {
+        ...activity.channelData,
+        originalActivityId: activity.id,
+        matchIndexes,
+      };
+      delete activity.id;
+    }
+    this.nextActivityToBePosted = activity;
+  }
+
+  public getNextActivityForPost() {
+    return this.nextActivityToBePosted;
+  }
+
+  public incomingActivity(activity: Activity) {
+    try {
+      this.receivedActivities.push(activity);
+
+      if (activity.channelData && !activity.replyToId) {
+        const matchIndexes: number[] = activity.channelData.matchIndexes;
+        if (matchIndexes) {
+          matchIndexes.forEach((index: number) => {
+            if (this.receivedActivities[index].replyToId !== activity.id) {
+              throw new Error('Replayed activities not in order of original conversation');
+            }
+          });
+        }
+      }
+      this.checkIfActivityToBePosted();
+    } catch (ex) {
+      return ex;
+    }
   }
 }

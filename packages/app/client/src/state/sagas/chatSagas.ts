@@ -242,7 +242,7 @@ export class ChatSagas {
     const wcEventChannel = ChatSagas.wcActivityChannel.getWebchatChannelSubscriber();
     while (true) {
       try {
-        const { documentId, action, cb } = yield take(wcEventChannel);
+        const { documentId, action } = yield take(wcEventChannel);
         switch (action.type) {
           case WebchatEvents.postActivity: {
             const activity: Activity = action.payload.activity as Activity;
@@ -256,7 +256,6 @@ export class ChatSagas {
             break;
           }
         }
-        cb();
       } catch (err) {
         wcEventChannel.close();
       }
@@ -270,18 +269,14 @@ export class ChatSagas {
       yield put(
         webChatStoreUpdated(
           documentId,
-          createWebChatStore({}, () => next => action => {
+          createWebChatStore({}, () => next => async action => {
             if (action.payload && webchatEventsToWatch.includes(action.type)) {
               ChatSagas.wcActivityChannel.sendWcEvents({
                 documentId,
                 action,
-                cb: () => {
-                  return next(action);
-                },
               });
-            } else {
-              return next(action);
             }
+            return next(action);
           })
         )
       );
@@ -366,25 +361,24 @@ export class ChatSagas {
     yield put(
       webChatStoreUpdated(
         documentId,
-        createWebChatStore({}, ({ dispatch }) => next => action => {
+        createWebChatStore({}, ({ dispatch }) => next => async action => {
           if (action.payload && webchatEventsToWatch.includes(action.type)) {
             try {
               ChatSagas.wcActivityChannel.sendWcEvents({
                 documentId,
                 action,
-                cb: () => {
-                  return next(action);
-                },
               });
+              return next(action);
             } finally {
               if (action.type === WebchatEvents.incomingActivity) {
-                const nextActivity: Activity = conversationQueue.incomingActivity(action.payload.activity);
-                if (nextActivity) {
+                conversationQueue.incomingActivity(action.payload.activity);
+                const postActivity: Activity = conversationQueue.getNextActivityForPost();
+                if (postActivity) {
                   dispatch({
                     type: WebchatEvents.postActivity,
                     payload: {
                       activity: {
-                        ...nextActivity,
+                        ...postActivity,
                       },
                     },
                     meta: {
