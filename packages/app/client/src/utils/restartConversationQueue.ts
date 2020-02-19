@@ -31,22 +31,26 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 import { Activity } from 'botframework-schema';
+import { ChatReplayData, HasIdAndReplyId } from '@bfemulator/app-shared';
+import { dispatch } from 'packages/app/main/src/state';
 
 export class ConversationQueue {
-  private activities: Activity[] = [];
-  private conversationId: string = '';
-  private restartFlow: Map<string, Map<string, number>>;
-  private replayActivities: Map<string, Activity>;
-  private activitiesToBeProcessed: string[];
-  private createObjectUrlFromWindow: Function;
+  private userActivities: Activity[] = [];
+  private botActivites: Activity[] = [];
+  private replayDataFromOldConversation: ChatReplayData;
+  private receivedActivities: Activity[];
+  private conversationId: string;
 
-  constructor(conversationId: string, originalActivities: Activity[], createObjectUrl: Function) {
-    this.activities = originalActivities;
+  // private createObjectUrlFromWindow: Function;
+
+  constructor(activities: Activity[], chatReplayData: ChatReplayData, conversationId: string) {
+    this.userActivities = activities.filter(
+      (activity: Activity) => activity.from.role === 'user' && activity.channelData
+    );
     this.conversationId = conversationId;
-    this.buildActivityQueue = this.buildActivityQueue.bind(this);
-    this.traverseRestartFlowMap = this.traverseRestartFlowMap.bind(this);
-    this.createObjectUrlFromWindow = createObjectUrl;
-    this.buildActivityQueue();
+    this.botActivites = activities.filter((activity: Activity) => activity.from.role !== 'user');
+    this.replayDataFromOldConversation = chatReplayData;
+    this.receivedActivities = [];
   }
 
   private static dataURLtoFile(dataurl: string, filename: string) {
@@ -63,67 +67,46 @@ export class ConversationQueue {
     return new File([u8arr], filename, { type: mime });
   }
 
-  public buildActivityQueue(): void {
-    this.restartFlow = new Map<string, Map<string, number>>();
-    this.replayActivities = new Map<string, Activity>();
-    const activityReplyCount = new Map<string, number>();
+  public incomingActivity(dispatch, activity: Activity): Activity {
+    this.receivedActivities.push(activity);
 
-    this.activities.forEach((activity: Activity) => {
-      if (activity.from.role === 'user') {
-        const replayActivity: Activity = {
-          ...activity,
-          channelData: {
-            ...activity.channelData,
-            originalActivityId: activity.id,
-          },
-          conversation: {
-            ...activity.conversation,
-            id: this.conversationId,
-          },
-        };
-        this.replayActivities.set(activity.id, replayActivity);
-        this.restartFlow.set(activity.id, new Map(activityReplyCount));
-      } else {
-        activityReplyCount.set(activity.id, (activityReplyCount.get(activity.id) || 0) + 1);
-      }
-    });
-  }
-
-  public traverseRestartFlowMap(incomingActivityId: string) {
-    [...this.restartFlow.keys()].forEach((activityId: string) => {
-      const value: Map<string, number> = this.restartFlow.get(activityId);
-      let ctOfActivity: number | undefined = value.get(incomingActivityId);
-      if (ctOfActivity) {
-        ctOfActivity--;
-        if (ctOfActivity === 0) {
-          value.delete(activityId);
-        } else {
-          value.set(activityId, ctOfActivity);
-        }
-      }
-
-      if ([...value.keys()].length === 0) {
-        this.activitiesToBeProcessed.push(activityId);
-      }
-    });
-  }
-
-  public getNextActivityInQueue() {
-    if (this.activitiesToBeProcessed.length > 0) {
-      const activityId: string = this.activitiesToBeProcessed.shift();
-      const activity: Activity = this.replayActivities.get(activityId);
-      if (activity.attachments && activity.attachments.length >= 1) {
-        const mutatedAttachments = activity.attachments.map(attachment => {
-          const fileFormat: File = ConversationQueue.dataURLtoFile(attachment.contentUrl, attachment.name);
-          return {
-            ...attachment,
-            contentUrl: this.createObjectUrlFromWindow(fileFormat),
-          };
+    if (activity.channelData && !activity.replyToId) {
+      const matchIndexes: number[] = activity.channelData.matchIndexes;
+      if (matchIndexes) {
+        matchIndexes.forEach((index: number) => {
+          if (this.receivedActivities[index].replyToId === activity.id) {
+            console.log('ON TRACK');
+          } else {
+            console.log('OFF TRACK');
+          }
         });
-        activity.attachments = mutatedAttachments;
       }
-    } else {
-      return undefined;
     }
+
+    if (this.replayDataFromOldConversation.postActivitiesSlots.includes(this.receivedActivities.length)) {
+      const nextActivity: Activity = this.userActivities.shift();
+      const matchIndexes = [];
+      this.replayDataFromOldConversation.incomingActivities.forEach((activity: HasIdAndReplyId, index: number) => {
+        if (activity.replyToId === nextActivity.id) {
+          matchIndexes.push(index);
+        }
+      });
+
+      if (nextActivity) {
+        delete nextActivity.id;
+        nextActivity.conversation = {
+          ...nextActivity.conversation,
+          id: this.conversationId,
+        };
+        nextActivity.channelData = {
+          ...nextActivity.channelData,
+          originalActivityId: nextActivity.id,
+          matchIndexes,
+        };
+
+        return nextActivity;
+      }
+    }
+    return undefined;
   }
 }

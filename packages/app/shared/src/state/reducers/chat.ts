@@ -40,6 +40,7 @@ import {
   PendingSpeechTokenRetrievalPayload,
   WebChatStorePayload,
   WebSpeechFactoryPayload,
+  ActivityFromWebchatPayload,
 } from '../actions/chatActions';
 import { EditorAction, EditorActions } from '../actions/editorActions';
 
@@ -53,6 +54,17 @@ export interface ChatState {
   transcripts?: string[];
 }
 
+export interface HasIdAndReplyId {
+  id: string;
+  replyToId: string;
+  test: string;
+}
+
+export interface ChatReplayData {
+  incomingActivities: HasIdAndReplyId[];
+  postActivitiesSlots: number[];
+}
+
 export interface ChatDocument<I = any> extends Document {
   endpointId: string;
   endpointUrl: string;
@@ -61,6 +73,7 @@ export interface ChatDocument<I = any> extends Document {
   log: ChatLog;
   pendingSpeechTokenRetrieval: boolean;
   ui: DocumentUI;
+  replayData: ChatReplayData;
 }
 
 export interface ChatLog {
@@ -106,7 +119,7 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
         changeKey: state.changeKey + 1,
         chats: {
           ...state.chats,
-          [payload.documentId]: { ...payload },
+          [payload.documentId]: { ...payload, replayData: {} },
         },
       };
       break;
@@ -272,6 +285,58 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
           },
         };
       }
+      break;
+    }
+
+    case ChatActions.IncomingActivityFromWc: {
+      const { documentId, activity } = action.payload as ActivityFromWebchatPayload;
+      const replayData: ChatReplayData = state.chats[documentId].replayData;
+      let incomingActivities: HasIdAndReplyId[] = [];
+      if (replayData.incomingActivities) {
+        incomingActivities = [...replayData.incomingActivities];
+      }
+      incomingActivities.push({
+        id: activity.id,
+        replyToId: activity.replyToId,
+        test: activity.text,
+      });
+      state = {
+        ...state,
+        chats: {
+          ...state.chats,
+          [documentId]: {
+            ...state.chats[documentId],
+            replayData: {
+              ...state.chats[documentId].replayData,
+              incomingActivities,
+            },
+          },
+        },
+      };
+      break;
+    }
+
+    case ChatActions.PostActivityEventWc: {
+      const { documentId } = action.payload as ActivityFromWebchatPayload;
+      let postActivitiesSlots: number[] = [];
+      if (state.chats[documentId].replayData.postActivitiesSlots) {
+        postActivitiesSlots = [...state.chats[documentId].replayData.postActivitiesSlots];
+      }
+
+      postActivitiesSlots.push(state.chats[documentId].replayData.incomingActivities.length);
+      state = {
+        ...state,
+        chats: {
+          ...state.chats,
+          [documentId]: {
+            ...state.chats[documentId],
+            replayData: {
+              ...state.chats[documentId].replayData,
+              postActivitiesSlots,
+            },
+          },
+        },
+      };
       break;
     }
 
