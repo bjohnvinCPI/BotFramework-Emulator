@@ -43,7 +43,7 @@ export interface WebChatActivityChannel {
 export interface ChannelPayload {
   documentId: string;
   action: any;
-  cb?: () => Promise<void>;
+  cb?: () => any;
 }
 
 export function createWebchatActivityChannel(): WebChatActivityChannel {

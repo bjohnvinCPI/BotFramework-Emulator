@@ -36,7 +36,6 @@ import { dispatch } from 'packages/app/main/src/state';
 
 export class ConversationQueue {
   private userActivities: Activity[] = [];
-  private botActivites: Activity[] = [];
   private replayDataFromOldConversation: ChatReplayData;
   private receivedActivities: Activity[];
   private conversationId: string;
@@ -48,7 +47,6 @@ export class ConversationQueue {
       (activity: Activity) => activity.from.role === 'user' && activity.channelData
     );
     this.conversationId = conversationId;
-    this.botActivites = activities.filter((activity: Activity) => activity.from.role !== 'user');
     this.replayDataFromOldConversation = chatReplayData;
     this.receivedActivities = [];
   }
@@ -67,7 +65,7 @@ export class ConversationQueue {
     return new File([u8arr], filename, { type: mime });
   }
 
-  public incomingActivity(dispatch, activity: Activity): Activity {
+  public incomingActivity(activity: Activity): Activity {
     this.receivedActivities.push(activity);
 
     if (activity.channelData && !activity.replyToId) {
@@ -84,27 +82,39 @@ export class ConversationQueue {
     }
 
     if (this.replayDataFromOldConversation.postActivitiesSlots.includes(this.receivedActivities.length)) {
-      const nextActivity: Activity = this.userActivities.shift();
+      const activity: Activity = this.userActivities.shift();
       const matchIndexes = [];
-      this.replayDataFromOldConversation.incomingActivities.forEach((activity: HasIdAndReplyId, index: number) => {
-        if (activity.replyToId === nextActivity.id) {
-          matchIndexes.push(index);
+      this.replayDataFromOldConversation.incomingActivities.forEach(
+        (incomingActivity: HasIdAndReplyId, index: number) => {
+          if (incomingActivity.replyToId === activity.id) {
+            matchIndexes.push(index);
+          }
         }
-      });
+      );
 
-      if (nextActivity) {
-        delete nextActivity.id;
-        nextActivity.conversation = {
-          ...nextActivity.conversation,
+      if (activity.attachments && activity.attachments.length >= 1) {
+        const mutatedAttachments = activity.attachments.map(attachment => {
+          const fileFormat: File = ConversationQueue.dataURLtoFile(attachment.contentUrl, attachment.name);
+          return {
+            ...attachment,
+            contentUrl: window.URL.createObjectURL(fileFormat),
+          };
+        });
+        activity.attachments = mutatedAttachments;
+      }
+
+      if (activity) {
+        activity.conversation = {
+          ...activity.conversation,
           id: this.conversationId,
         };
-        nextActivity.channelData = {
-          ...nextActivity.channelData,
-          originalActivityId: nextActivity.id,
+        activity.channelData = {
+          ...activity.channelData,
+          originalActivityId: activity.id,
           matchIndexes,
         };
-
-        return nextActivity;
+        delete activity.id;
+        return activity;
       }
     }
     return undefined;

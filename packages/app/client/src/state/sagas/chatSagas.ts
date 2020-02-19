@@ -268,19 +268,17 @@ export class ChatSagas {
         webChatStoreUpdated(
           documentId,
           createWebChatStore({}, () => next => action => {
-            console.log('Bootstrap', action.payload);
             if (
               action.payload &&
               (action.type === `DIRECT_LINE/POST_ACTIVITY` || action.type === `DIRECT_LINE/INCOMING_ACTIVITY`)
             ) {
-              this.wcActivityChannel.sendWcEvents({
+              ChatSagas.wcActivityChannel.sendWcEvents({
                 documentId,
                 action,
                 cb: () => {
                   return next(action);
                 },
               });
-              return;
             }
             return next(action);
           })
@@ -373,23 +371,39 @@ export class ChatSagas {
             (action.type === `DIRECT_LINE/POST_ACTIVITY` || action.type === `DIRECT_LINE/INCOMING_ACTIVITY`)
           ) {
             if (action.type === `DIRECT_LINE/INCOMING_ACTIVITY`) {
-              const nextActivity: Activity | undefined = conversationQueue.incomingActivity(
-                dispatch,
-                action.payload.activity
-              );
-              if (nextActivity) {
-                dispatch({
-                  type: 'DIRECT_LINE/POST_ACTIVITY',
-                  payload: {
-                    nextActivity,
-                  },
-                  meta: {
-                    method: 'keyboard',
-                  },
-                });
-              }
+              const nextActivity: Activity = conversationQueue.incomingActivity(action.payload.activity);
+              // next(action);
+              ChatSagas.wcActivityChannel.sendWcEvents({
+                documentId,
+                action,
+                cb: () => {
+                  next(action);
+                  if (nextActivity) {
+                    dispatch({
+                      type: 'DIRECT_LINE/POST_ACTIVITY',
+                      payload: {
+                        activity: {
+                          ...nextActivity,
+                        },
+                      },
+                      meta: {
+                        method: 'keyboard',
+                      },
+                    });
+                  }
+                },
+              });
             }
-            return;
+
+            if (action.type === `DIRECT_LINE/POST_ACTIVITY`) {
+              ChatSagas.wcActivityChannel.sendWcEvents({
+                documentId,
+                action,
+                cb: () => {
+                  next(action);
+                },
+              });
+            }
           }
           return next(action);
         })
