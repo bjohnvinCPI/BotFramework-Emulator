@@ -96,8 +96,10 @@ export class ConversationQueue {
         }
       }
     );
+
     if (activity.attachments && activity.attachments.length >= 1) {
       const mutatedAttachments = activity.attachments.map(attachment => {
+        // Convert back to file and create a temporary link using object URL
         const fileFormat: File = ConversationQueue.dataURLtoFile(attachment.contentUrl, attachment.name);
         return {
           ...attachment,

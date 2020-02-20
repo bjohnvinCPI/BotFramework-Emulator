@@ -67,6 +67,7 @@ export enum RestartConversationStatus {
   Started,
   Rejected,
   Completed,
+  Stop,
 }
 
 export interface ActiveInspectorChangedPayload {

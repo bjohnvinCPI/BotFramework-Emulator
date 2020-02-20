@@ -70,7 +70,7 @@ export class ActivityWrapper extends Component<ActivityWrapperProps> {
     const restartConversationBubble = (
       <div className={[styles.replayBubble, isUserActivity && isSelected ? '' : styles.hidden].join(' ')}>
         <LinkButton ariaLabel="Restart from activity." linkRole={false} onClick={this.replayConversation}>
-          Restart from here
+          Restart conversation from here
         </LinkButton>
       </div>
     );
