@@ -60,6 +60,13 @@ export enum ChatActions {
   webChatStoreUpdated = 'CHAT/STORE/UPDATED',
   PostActivityEventWc = 'CHAT/POST_ACTIVITY_WEBCHAT',
   IncomingActivityFromWc = 'CHAT/INCOMING_ACTIVITY_WEBCHAT',
+  SetRestartConversationStatus = 'CHAT/RESTART/ACTIVITY/STATUS',
+}
+
+export enum RestartConversationStatus {
+  Started,
+  Rejected,
+  Completed,
 }
 
 export interface ActiveInspectorChangedPayload {
@@ -128,11 +135,17 @@ export interface RestartConversationPayload {
   documentId: string;
   requireNewConversationId: boolean;
   requireNewUserId: boolean;
+  activity?: Activity;
 }
 
 export interface ActivityFromWebchatPayload {
   documentId: string;
   activity: Activity;
+}
+
+export interface RestartConversationStatusPayload {
+  documentId: string;
+  status: RestartConversationStatus;
 }
 
 export interface ChatAction<T = any> extends Action {
@@ -332,7 +345,8 @@ export function showContextMenuForActivity(activity: Partial<Activity>): ChatAct
 export function restartConversation(
   documentId: string,
   requireNewConversationId: boolean = false,
-  requireNewUserId: boolean = false
+  requireNewUserId: boolean = false,
+  activity: Activity = undefined
 ): ChatAction<RestartConversationPayload> {
   return {
     type: ChatActions.restartConversation,
@@ -340,6 +354,7 @@ export function restartConversation(
       documentId,
       requireNewConversationId,
       requireNewUserId,
+      activity,
     },
   };
 }
@@ -360,6 +375,19 @@ export function incomingActivity(activity: Activity, documentId: string): ChatAc
     payload: {
       documentId,
       activity,
+    },
+  };
+}
+
+export function setRestartConversationStatus(
+  status: RestartConversationStatus,
+  documentId: string
+): ChatAction<RestartConversationStatusPayload> {
+  return {
+    type: ChatActions.SetRestartConversationStatus,
+    payload: {
+      documentId,
+      status,
     },
   };
 }

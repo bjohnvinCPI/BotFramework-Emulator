@@ -41,6 +41,8 @@ import {
   WebChatStorePayload,
   WebSpeechFactoryPayload,
   ActivityFromWebchatPayload,
+  RestartConversationStatus,
+  RestartConversationStatusPayload,
 } from '../actions/chatActions';
 import { EditorAction, EditorActions } from '../actions/editorActions';
 
@@ -52,6 +54,7 @@ export interface ChatState {
   webSpeechFactories?: { [documentId: string]: () => any };
   webChatStores: { [documentId: string]: any };
   transcripts?: string[];
+  conversationRestartStatus?: { [chatId: string]: RestartConversationStatus };
 }
 
 export interface HasIdAndReplyId {
@@ -339,6 +342,19 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
           },
         },
       };
+      break;
+    }
+
+    case ChatActions.SetRestartConversationStatus: {
+      const { documentId, status } = action.payload as RestartConversationStatusPayload;
+      state = {
+        ...state,
+        conversationRestartStatus: {
+          ...state.conversationRestartStatus,
+          [documentId]: status,
+        },
+      };
+
       break;
     }
 

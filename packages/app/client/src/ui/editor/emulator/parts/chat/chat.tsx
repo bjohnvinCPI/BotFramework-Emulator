@@ -248,6 +248,8 @@ export class Chat extends PureComponent<ChatProps, ChatState> {
   }
 
   private onItemRendererClick = (event: MouseEvent<HTMLDivElement | HTMLButtonElement>): void => {
+    console.log(event.currentTarget);
+    console.log(this.activityMap);
     const { activityId } = (event.currentTarget as any).dataset;
     this.updateSelectedActivity(activityId);
   };

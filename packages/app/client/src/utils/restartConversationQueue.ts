@@ -31,8 +31,8 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 import { Activity } from 'botframework-schema';
+import { SharedConstants } from '@bfemulator/app-shared';
 import { ChatReplayData, HasIdAndReplyId } from '@bfemulator/app-shared';
-import { dispatch } from 'packages/app/main/src/state';
 
 export class ConversationQueue {
   private userActivities: Activity[] = [];
@@ -43,10 +43,22 @@ export class ConversationQueue {
 
   // private createObjectUrlFromWindow: Function;
 
-  constructor(activities: Activity[], chatReplayData: ChatReplayData, conversationId: string) {
+  constructor(
+    activities: Activity[],
+    chatReplayData: ChatReplayData,
+    conversationId: string,
+    replayToActivity: Activity
+  ) {
+    // Get all user activities
     this.userActivities = activities.filter(
-      (activity: Activity) => activity.from.role === 'user' && activity.channelData
+      (activity: Activity) => activity.from.role === SharedConstants.Activity.FROM_USER_ROLE && activity.channelData
     );
+
+    const trimActivityIndex: number = this.userActivities.findIndex(activity => activity.id === replayToActivity.id);
+    if (trimActivityIndex !== -1) {
+      this.userActivities = this.userActivities.splice(0, trimActivityIndex + 1);
+    }
+
     this.conversationId = conversationId;
     this.replayDataFromOldConversation = chatReplayData;
     this.receivedActivities = [];

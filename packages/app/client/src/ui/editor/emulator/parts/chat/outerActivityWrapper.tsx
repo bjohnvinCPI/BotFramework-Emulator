@@ -32,6 +32,7 @@
 //
 
 import * as React from 'react';
+import { SharedConstants } from '@bfemulator/app-shared';
 import { Activity } from 'botframework-schema';
 
 import { areActivitiesEqual } from '../../../../../utils';
@@ -42,9 +43,11 @@ export interface OuterActivityWrapperProps {
   card?: any;
   children?: any;
   highlightedActivities?: Activity[];
+  documentId: string;
   onContextMenu?: (event: React.MouseEvent<HTMLElement>) => void;
   onItemRendererClick?: (event: React.MouseEvent<HTMLElement>) => void;
   onItemRendererKeyDown?: (event: React.KeyboardEvent<HTMLElement>) => void;
+  onRestartConversationFromActivityClick?: (documentId: string, activity: Activity) => void;
 }
 
 export class OuterActivityWrapper extends React.Component<OuterActivityWrapperProps, {}> {
@@ -59,9 +62,21 @@ export class OuterActivityWrapper extends React.Component<OuterActivityWrapperPr
         onKeyDown={onItemRendererKeyDown}
         onContextMenu={onContextMenu}
         isSelected={this.shouldBeSelected(card.activity)}
+        isUserActivity={this.isUserActivity(card.activity)}
+        onRestartConversationFromActivityClick={this.propsBoundRestartActivityHandler}
       >
         {children}
       </ActivityWrapper>
+    );
+  }
+
+  private propsBoundRestartActivityHandler = () => {
+    this.props.onRestartConversationFromActivityClick(this.props.documentId, this.props.card.activity);
+  };
+
+  private isUserActivity(activity: Activity) {
+    return (
+      activity.from.role === SharedConstants.Activity.FROM_USER_ROLE && !activity.replyToId && activity.channelData
     );
   }
 

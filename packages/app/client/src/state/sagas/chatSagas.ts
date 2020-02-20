@@ -43,7 +43,6 @@ import {
   webChatStoreUpdated,
   webSpeechFactoryUpdated,
   ChatAction,
-  ChatActions,
   ChatDocument,
   DocumentIdPayload,
   OpenTranscriptPayload,
@@ -66,6 +65,7 @@ import { createCognitiveServicesSpeechServicesPonyfillFactory, createDirectLine 
 import { createStore as createWebChatStore } from 'botframework-webchat-core';
 import { call, ForkEffect, put, select, takeEvery, fork, take } from 'redux-saga/effects';
 import { encode } from 'base64url';
+import { ChatActions } from '@bfemulator/app-shared';
 
 import { RootState } from '../store';
 import { ConversationQueue } from '../../utils/restartConversationQueue';
@@ -334,6 +334,7 @@ export class ChatSagas {
 
   public static *restartConversation(action: ChatAction<RestartConversationPayload>): IterableIterator<any> {
     const { documentId, requireNewConversationId, requireNewUserId } = action.payload;
+    const replayToActivity: Activity = action.payload.activity || undefined;
     const chat: ChatDocument = yield select(getChatFromDocumentId, documentId);
     const serverUrl = yield select(getServerUrl);
     const activities: Activity[] = yield call(
@@ -354,7 +355,10 @@ export class ChatSagas {
       conversationId = chat.conversationId || `${uniqueId()}|${chat.mode}`;
     }
 
-    const conversationQueue = new ConversationQueue(activities, chat.replayData, conversationId);
+    let conversationQueue;
+    if (replayToActivity) {
+      conversationQueue = new ConversationQueue(activities, chat.replayData, conversationId, replayToActivity);
+    }
 
     yield put(clearLog(documentId));
     yield put(setInspectorObjects(documentId, []));
@@ -370,21 +374,23 @@ export class ChatSagas {
               });
               return next(action);
             } finally {
-              if (action.type === WebchatEvents.incomingActivity) {
-                conversationQueue.incomingActivity(action.payload.activity);
-                const postActivity: Activity = conversationQueue.getNextActivityForPost();
-                if (postActivity) {
-                  dispatch({
-                    type: WebchatEvents.postActivity,
-                    payload: {
-                      activity: {
-                        ...postActivity,
+              if (conversationQueue) {
+                if (action.type === WebchatEvents.incomingActivity) {
+                  conversationQueue.incomingActivity(action.payload.activity);
+                  const postActivity: Activity = conversationQueue.getNextActivityForPost();
+                  if (postActivity) {
+                    dispatch({
+                      type: WebchatEvents.postActivity,
+                      payload: {
+                        activity: {
+                          ...postActivity,
+                        },
                       },
-                    },
-                    meta: {
-                      method: 'keyboard',
-                    },
-                  });
+                      meta: {
+                        method: 'keyboard',
+                      },
+                    });
+                  }
                 }
               }
             }

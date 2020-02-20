@@ -57,7 +57,7 @@ export class ProgressIndicator extends Component<ProgressIndicatorProps, Progres
     }
     return (
       <Dialog cancel={this.props.close} className={dialogStyles.dialogMedium}>
-        <p>{this.props.label}</p>
+        <p>Replaying Conversations Now</p>
         <hr className={styles.progressIndicator} ref={this.hrRef} />
         <DialogFooter>
           <PrimaryButton text="Dismiss" onClick={this.props.cancel} />
