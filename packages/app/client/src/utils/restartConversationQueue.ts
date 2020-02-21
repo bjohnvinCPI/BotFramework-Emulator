@@ -31,8 +31,15 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 import { Activity } from 'botframework-schema';
-import { SharedConstants } from '@bfemulator/app-shared';
+import { SharedConstants, RestartConversationStatus } from '@bfemulator/app-shared';
 import { ChatReplayData, HasIdAndReplyId } from '@bfemulator/app-shared';
+
+export enum WebchatEvents {
+  postActivity = 'DIRECT_LINE/POST_ACTIVITY',
+  incomingActivity = 'DIRECT_LINE/INCOMING_ACTIVITY',
+}
+
+export const webchatEventsToWatch: string[] = [WebchatEvents.postActivity, WebchatEvents.incomingActivity];
 
 export class ConversationQueue {
   private userActivities: Activity[] = [];
@@ -66,6 +73,14 @@ export class ConversationQueue {
 
     this.checkIfActivityToBePosted = this.checkIfActivityToBePosted.bind(this);
     this.incomingActivity = this.incomingActivity.bind(this);
+  }
+
+  public validateIfReplayFlow(replayStatus: RestartConversationStatus, actionType: string) {
+    return !!(
+      typeof replayStatus !== undefined &&
+      actionType === WebchatEvents.incomingActivity &&
+      replayStatus === RestartConversationStatus.Started
+    );
   }
 
   private static dataURLtoFile(dataurl: string, filename: string) {

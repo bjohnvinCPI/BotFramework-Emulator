@@ -33,7 +33,7 @@
 // import { EventEmitter } from 'events';
 
 // import { Activity } from 'botframework-schema';
-import { eventChannel, Channel } from 'redux-saga';
+import { eventChannel, Channel, buffers } from 'redux-saga';
 
 export interface WebChatActivityChannel {
   sendWcEvents: (args: ChannelPayload) => void;
@@ -66,7 +66,7 @@ export function createWebchatActivityChannel(): WebChatActivityChannel {
       return () => {
         unsubscribeToEvents = true;
       };
-    });
+    }, buffers.expanding(20));
   };
 
   const sendWcEvents = async (args: ChannelPayload) => {

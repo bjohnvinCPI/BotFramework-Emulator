@@ -53,6 +53,7 @@ import {
   postActivity,
   RestartConversationStatusPayload,
   RestartConversationStatus,
+  setRestartConversationStatus,
 } from '@bfemulator/app-shared';
 import {
   CommandServiceImpl,
@@ -70,7 +71,7 @@ import { encode } from 'base64url';
 import { ChatActions } from '@bfemulator/app-shared';
 
 import { RootState } from '../store';
-import { ConversationQueue } from '../../utils/restartConversationQueue';
+import { ConversationQueue, WebchatEvents, webchatEventsToWatch } from '../../utils/restartConversationQueue';
 
 import { createWebchatActivityChannel, WebChatActivityChannel, ChannelPayload } from './webchatActivityChannel';
 
@@ -99,17 +100,13 @@ export const getChatStoreFromDocumentId = (state: RootState, documentId: string)
 };
 
 export const getReplayStatus = (state: RootState, documentId: string): RestartConversationStatus => {
+  if (!state.chat.conversationRestartStatus) {
+    return undefined;
+  }
   return state.chat.conversationRestartStatus[documentId];
 };
 
-enum WebchatEvents {
-  postActivity = 'DIRECT_LINE/POST_ACTIVITY',
-  incomingActivity = 'DIRECT_LINE/INCOMING_ACTIVITY',
-}
-
-const webchatEventsToWatch: string[] = [WebchatEvents.postActivity, WebchatEvents.incomingActivity];
-
-const dispatchActivityToWebchat = (dispatch: any, postActivity: Activity) => {
+const dispatchActivityToWebchat = (dispatch: Function, postActivity: Activity) => {
   dispatch({
     type: WebchatEvents.postActivity,
     payload: {
@@ -278,17 +275,28 @@ export class ChatSagas {
         }
       } catch (err) {
         wcEventChannel.close();
+        // Restart the channel if error occurs
         ChatSagas.wcActivityChannel = createWebchatActivityChannel();
       } finally {
-        const conversationQueue = meta ? meta.conversationQueue : undefined;
-        if (conversationQueue && !conversationQueue.replayComplete && action.type === WebchatEvents.incomingActivity) {
-          yield call([conversationQueue, conversationQueue.incomingActivity], action.payload.activity);
+        const conversationQueue: ConversationQueue | undefined = meta ? meta.conversationQueue : undefined;
+        const replayStatus: RestartConversationStatus | undefined = yield select(getReplayStatus, documentId);
+        if (conversationQueue && conversationQueue.validateIfReplayFlow(replayStatus, action.type)) {
+          const activityFlowError: string = yield call(
+            [conversationQueue, conversationQueue.incomingActivity],
+            action.payload.activity
+          );
+          if (activityFlowError) {
+            yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
+          }
+          if (conversationQueue.replayComplete) {
+            yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
+          }
           const postActivity: Activity | undefined = yield call([
             meta.conversationQueue,
             meta.conversationQueue.getNextActivityForPost,
           ]);
           if (postActivity) {
-            yield fork(dispatchActivityToWebchat, dispatch, postActivity);
+            yield call(dispatchActivityToWebchat, dispatch, postActivity);
           }
         }
       }
@@ -390,8 +398,9 @@ export class ChatSagas {
       conversationId = chat.conversationId || `${uniqueId()}|${chat.mode}`;
     }
 
-    let conversationQueue;
+    let conversationQueue: ConversationQueue;
     if (replayToActivity) {
+      yield put(setRestartConversationStatus(RestartConversationStatus.Started, documentId));
       conversationQueue = new ConversationQueue(activities, chat.replayData, conversationId, replayToActivity);
     }
 
@@ -401,11 +410,11 @@ export class ChatSagas {
       webChatStoreUpdated(
         documentId,
         createWebChatStore({}, ({ dispatch }) => next => async action => {
-          if (webchatEventsToWatch.includes(action.type) && action.payload) {
+          if (action.payload && webchatEventsToWatch.includes(action.type)) {
             ChatSagas.wcActivityChannel.sendWcEvents({
               documentId,
-              dispatch,
               action,
+              dispatch,
               meta: {
                 conversationQueue,
               },
