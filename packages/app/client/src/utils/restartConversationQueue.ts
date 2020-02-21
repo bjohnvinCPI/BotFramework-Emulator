@@ -40,6 +40,7 @@ export class ConversationQueue {
   private receivedActivities: Activity[];
   private conversationId: string;
   private nextActivityToBePosted = null;
+  private isReplayComplete = false;
 
   // private createObjectUrlFromWindow: Function;
 
@@ -124,11 +125,18 @@ export class ConversationQueue {
     this.nextActivityToBePosted = activity;
   }
 
-  public getNextActivityForPost() {
+  public getNextActivityForPost(): Activity | undefined {
     return this.nextActivityToBePosted;
   }
 
+  public get replayComplete(): boolean {
+    return this.isReplayComplete;
+  }
+
   public incomingActivity(activity: Activity) {
+    if (this.isReplayComplete) {
+      return;
+    }
     try {
       this.receivedActivities.push(activity);
 
@@ -141,6 +149,9 @@ export class ConversationQueue {
             }
           });
         }
+      }
+      if (this.replayDataFromOldConversation.incomingActivities.length === this.receivedActivities.length) {
+        this.isReplayComplete = true;
       }
       this.checkIfActivityToBePosted();
     } catch (ex) {

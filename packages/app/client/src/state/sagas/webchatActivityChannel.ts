@@ -34,7 +34,6 @@
 
 // import { Activity } from 'botframework-schema';
 import { eventChannel, Channel } from 'redux-saga';
-import { Action } from 'redux';
 
 export interface WebChatActivityChannel {
   sendWcEvents: (args: ChannelPayload) => void;
@@ -43,7 +42,9 @@ export interface WebChatActivityChannel {
 
 export interface ChannelPayload {
   documentId: string;
-  action: Action;
+  action: any;
+  dispatch: any;
+  meta: any;
 }
 
 export function createWebchatActivityChannel(): WebChatActivityChannel {

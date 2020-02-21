@@ -54,7 +54,7 @@ export interface ChatState {
   webSpeechFactories?: { [documentId: string]: () => any };
   webChatStores: { [documentId: string]: any };
   transcripts?: string[];
-  conversationRestartStatus?: { [chatId: string]: RestartConversationStatus };
+  restartStatus: { [chatId: string]: RestartConversationStatus };
 }
 
 export interface HasIdAndReplyId {
@@ -349,8 +349,7 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
       const { documentId, status } = action.payload as RestartConversationStatusPayload;
       state = {
         ...state,
-        conversationRestartStatus: {
-          ...state.conversationRestartStatus,
+        restartStatus: {
           [documentId]: status,
         },
       };

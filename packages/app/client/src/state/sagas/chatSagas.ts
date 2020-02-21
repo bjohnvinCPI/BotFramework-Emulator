@@ -51,6 +51,8 @@ import {
   ValueTypes,
   incomingActivity,
   postActivity,
+  RestartConversationStatusPayload,
+  RestartConversationStatus,
 } from '@bfemulator/app-shared';
 import {
   CommandServiceImpl,
@@ -70,7 +72,7 @@ import { ChatActions } from '@bfemulator/app-shared';
 import { RootState } from '../store';
 import { ConversationQueue } from '../../utils/restartConversationQueue';
 
-import { createWebchatActivityChannel, WebChatActivityChannel } from './webchatActivityChannel';
+import { createWebchatActivityChannel, WebChatActivityChannel, ChannelPayload } from './webchatActivityChannel';
 
 export const getConversationIdFromDocumentId = (state: RootState, documentId: string) => {
   return (state.chat.chats[documentId] || { conversationId: null }).conversationId;
@@ -96,12 +98,30 @@ export const getChatStoreFromDocumentId = (state: RootState, documentId: string)
   return state.chat.webChatStores[documentId];
 };
 
+export const getReplayStatus = (state: RootState, documentId: string): RestartConversationStatus => {
+  return state.chat.conversationRestartStatus[documentId];
+};
+
 enum WebchatEvents {
   postActivity = 'DIRECT_LINE/POST_ACTIVITY',
   incomingActivity = 'DIRECT_LINE/INCOMING_ACTIVITY',
 }
 
 const webchatEventsToWatch: string[] = [WebchatEvents.postActivity, WebchatEvents.incomingActivity];
+
+const dispatchActivityToWebchat = (dispatch: any, postActivity: Activity) => {
+  dispatch({
+    type: WebchatEvents.postActivity,
+    payload: {
+      activity: {
+        ...postActivity,
+      },
+    },
+    meta: {
+      method: 'keyboard',
+    },
+  });
+};
 
 interface BootstrapChatPayload {
   conversationId: string;
@@ -241,8 +261,8 @@ export class ChatSagas {
   public static *watchForWcEvents() {
     const wcEventChannel = ChatSagas.wcActivityChannel.getWebchatChannelSubscriber();
     while (true) {
+      const { documentId, action, dispatch, meta }: ChannelPayload = yield take(wcEventChannel);
       try {
-        const { documentId, action } = yield take(wcEventChannel);
         switch (action.type) {
           case WebchatEvents.postActivity: {
             const activity: Activity = action.payload.activity as Activity;
@@ -258,6 +278,19 @@ export class ChatSagas {
         }
       } catch (err) {
         wcEventChannel.close();
+        ChatSagas.wcActivityChannel = createWebchatActivityChannel();
+      } finally {
+        const conversationQueue = meta ? meta.conversationQueue : undefined;
+        if (conversationQueue && !conversationQueue.replayComplete && action.type === WebchatEvents.incomingActivity) {
+          yield call([conversationQueue, conversationQueue.incomingActivity], action.payload.activity);
+          const postActivity: Activity | undefined = yield call([
+            meta.conversationQueue,
+            meta.conversationQueue.getNextActivityForPost,
+          ]);
+          if (postActivity) {
+            yield fork(dispatchActivityToWebchat, dispatch, postActivity);
+          }
+        }
       }
     }
   }
@@ -269,11 +302,13 @@ export class ChatSagas {
       yield put(
         webChatStoreUpdated(
           documentId,
-          createWebChatStore({}, () => next => async action => {
+          createWebChatStore({}, ({ dispatch }) => next => async action => {
             if (action.payload && webchatEventsToWatch.includes(action.type)) {
               ChatSagas.wcActivityChannel.sendWcEvents({
                 documentId,
                 action,
+                dispatch,
+                meta: undefined,
               });
             }
             return next(action);
@@ -366,37 +401,17 @@ export class ChatSagas {
       webChatStoreUpdated(
         documentId,
         createWebChatStore({}, ({ dispatch }) => next => async action => {
-          if (action.payload && webchatEventsToWatch.includes(action.type)) {
-            try {
-              ChatSagas.wcActivityChannel.sendWcEvents({
-                documentId,
-                action,
-              });
-              return next(action);
-            } finally {
-              if (conversationQueue) {
-                if (action.type === WebchatEvents.incomingActivity) {
-                  conversationQueue.incomingActivity(action.payload.activity);
-                  const postActivity: Activity = conversationQueue.getNextActivityForPost();
-                  if (postActivity) {
-                    dispatch({
-                      type: WebchatEvents.postActivity,
-                      payload: {
-                        activity: {
-                          ...postActivity,
-                        },
-                      },
-                      meta: {
-                        method: 'keyboard',
-                      },
-                    });
-                  }
-                }
-              }
-            }
-          } else {
-            return next(action);
+          if (webchatEventsToWatch.includes(action.type) && action.payload) {
+            ChatSagas.wcActivityChannel.sendWcEvents({
+              documentId,
+              dispatch,
+              action,
+              meta: {
+                conversationQueue,
+              },
+            });
           }
+          return next(action);
         })
       )
     );
