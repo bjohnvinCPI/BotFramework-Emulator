@@ -255,6 +255,30 @@ export class ChatSagas {
     }
   }
 
+  public static *handleReplayIfRequired({ documentId, action, dispatch, meta }: ChannelPayload) {
+    const conversationQueue: ConversationQueue | undefined = meta ? meta.conversationQueue : undefined;
+    const replayStatus: RestartConversationStatus | undefined = yield select(getReplayStatus, documentId);
+    if (conversationQueue && conversationQueue.validateIfReplayFlow(replayStatus, action.type)) {
+      const activityFlowError: string = yield call(
+        [conversationQueue, conversationQueue.incomingActivity],
+        action.payload.activity
+      );
+      if (activityFlowError) {
+        yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
+      }
+      if (conversationQueue.replayComplete) {
+        yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
+      }
+      const postActivity: Activity | undefined = yield call([
+        meta.conversationQueue,
+        meta.conversationQueue.getNextActivityForPost,
+      ]);
+      if (postActivity) {
+        yield call(dispatchActivityToWebchat, dispatch, postActivity);
+      }
+    }
+  }
+
   public static *watchForWcEvents() {
     const wcEventChannel = ChatSagas.wcActivityChannel.getWebchatChannelSubscriber();
     while (true) {
@@ -278,27 +302,7 @@ export class ChatSagas {
         // Restart the channel if error occurs
         ChatSagas.wcActivityChannel = createWebchatActivityChannel();
       } finally {
-        const conversationQueue: ConversationQueue | undefined = meta ? meta.conversationQueue : undefined;
-        const replayStatus: RestartConversationStatus | undefined = yield select(getReplayStatus, documentId);
-        if (conversationQueue && conversationQueue.validateIfReplayFlow(replayStatus, action.type)) {
-          const activityFlowError: string = yield call(
-            [conversationQueue, conversationQueue.incomingActivity],
-            action.payload.activity
-          );
-          if (activityFlowError) {
-            yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
-          }
-          if (conversationQueue.replayComplete) {
-            yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
-          }
-          const postActivity: Activity | undefined = yield call([
-            meta.conversationQueue,
-            meta.conversationQueue.getNextActivityForPost,
-          ]);
-          if (postActivity) {
-            yield call(dispatchActivityToWebchat, dispatch, postActivity);
-          }
-        }
+        yield fork(ChatSagas.handleReplayIfRequired, { documentId, action, dispatch, meta });
       }
     }
   }
