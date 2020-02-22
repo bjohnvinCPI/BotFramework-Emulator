@@ -48,12 +48,12 @@ export interface ChatPanelProps {
 
 export class ChatPanel extends React.Component<ChatPanelProps> {
   render() {
-    const { documentId, endpointUrl = '', mode } = this.props;
+    const { documentId, endpointUrl = '' } = this.props;
 
     return (
       <div className={`${styles.chatPanel} ${this.props.className || ''}`}>
         <header>{endpointUrl}</header>
-        <ChatContainer documentId={documentId} mode={mode} />
+        <ChatContainer documentId={documentId} />
       </div>
     );
   }

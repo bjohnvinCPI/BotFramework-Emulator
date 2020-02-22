@@ -159,7 +159,7 @@ export class ConversationQueue {
         const matchIndexes: number[] = activity.channelData.matchIndexes;
         if (matchIndexes) {
           matchIndexes.forEach((index: number) => {
-            if (this.receivedActivities[index].replyToId !== activity.id) {
+            if (this.receivedActivities[index] && this.receivedActivities[index].replyToId !== activity.id) {
               throw new Error('Replayed activities not in order of original conversation');
             }
           });

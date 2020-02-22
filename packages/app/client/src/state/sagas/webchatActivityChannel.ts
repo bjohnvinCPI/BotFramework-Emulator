@@ -34,16 +34,24 @@
 
 // import { Activity } from 'botframework-schema';
 import { eventChannel, Channel, buffers } from 'redux-saga';
+import { Activity } from 'botframework-schema';
 
 export interface WebChatActivityChannel {
   sendWcEvents: (args: ChannelPayload) => void;
   getWebchatChannelSubscriber: () => Channel<ChannelPayload>;
 }
 
+export interface WebchatEventPayload {
+  type: string;
+  payload: {
+    activity: Activity;
+  };
+}
+
 export interface ChannelPayload {
   documentId: string;
-  action: any;
-  dispatch: any;
+  action: WebchatEventPayload;
+  dispatch: Function;
   meta: any;
 }
 

@@ -51,9 +51,9 @@ import {
   ValueTypes,
   incomingActivity,
   postActivity,
-  RestartConversationStatusPayload,
   RestartConversationStatus,
   setRestartConversationStatus,
+  updateEmulatorMode,
 } from '@bfemulator/app-shared';
 import {
   CommandServiceImpl,
@@ -99,11 +99,15 @@ export const getChatStoreFromDocumentId = (state: RootState, documentId: string)
   return state.chat.webChatStores[documentId];
 };
 
-export const getReplayStatus = (state: RootState, documentId: string): RestartConversationStatus => {
-  if (!state.chat.conversationRestartStatus) {
+export const getRestartStatus = (state: RootState, documentId: string): RestartConversationStatus => {
+  if (!state.chat.restartStatus) {
     return undefined;
   }
-  return state.chat.conversationRestartStatus[documentId];
+  return state.chat.restartStatus[documentId];
+};
+
+export const getCurrentEmulatorMode = (state: RootState, documentId: string): EmulatorMode => {
+  return state.chat.chats[documentId].mode;
 };
 
 const dispatchActivityToWebchat = (dispatch: Function, postActivity: Activity) => {
@@ -257,18 +261,25 @@ export class ChatSagas {
 
   public static *handleReplayIfRequired({ documentId, action, dispatch, meta }: ChannelPayload) {
     const conversationQueue: ConversationQueue | undefined = meta ? meta.conversationQueue : undefined;
-    const replayStatus: RestartConversationStatus | undefined = yield select(getReplayStatus, documentId);
+    const replayStatus: RestartConversationStatus | undefined = yield select(getRestartStatus, documentId);
     if (conversationQueue && conversationQueue.validateIfReplayFlow(replayStatus, action.type)) {
       const activityFlowError: string = yield call(
         [conversationQueue, conversationQueue.incomingActivity],
         action.payload.activity
       );
       if (activityFlowError) {
+        console.log('Replay Error');
         yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
+        yield put(updateEmulatorMode(meta.currentEmulatorMode, documentId));
+        return;
       }
       if (conversationQueue.replayComplete) {
+        console.log('Replay complete');
         yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
+        yield put(updateEmulatorMode(meta.currentEmulatorMode, documentId));
+        return;
       }
+
       const postActivity: Activity | undefined = yield call([
         meta.conversationQueue,
         meta.conversationQueue.getNextActivityForPost,
@@ -286,13 +297,13 @@ export class ChatSagas {
       try {
         switch (action.type) {
           case WebchatEvents.postActivity: {
-            const activity: Activity = action.payload.activity as Activity;
+            const activity: Activity = action.payload.activity;
             yield put(postActivity(activity, documentId));
             break;
           }
 
           case WebchatEvents.incomingActivity: {
-            const activity: Activity = action.payload.activity as Activity;
+            const activity: Activity = action.payload.activity;
             yield put(incomingActivity(activity, documentId));
             break;
           }
@@ -403,7 +414,9 @@ export class ChatSagas {
     }
 
     let conversationQueue: ConversationQueue;
+    const currentEmulatorMode: EmulatorMode = yield select(getCurrentEmulatorMode, documentId);
     if (replayToActivity) {
+      yield put(updateEmulatorMode('replay' as EmulatorMode, documentId));
       yield put(setRestartConversationStatus(RestartConversationStatus.Started, documentId));
       conversationQueue = new ConversationQueue(activities, chat.replayData, conversationId, replayToActivity);
     }
@@ -421,6 +434,7 @@ export class ChatSagas {
               dispatch,
               meta: {
                 conversationQueue,
+                currentEmulatorMode,
               },
             });
           }
@@ -514,6 +528,9 @@ export class ChatSagas {
       }
 
       yield put(updatePendingSpeechTokenRetrieval(documentId, false));
+    }
+    if (replayToActivity) {
+      yield put(updateEmulatorMode('replay' as EmulatorMode, documentId));
     }
   }
 

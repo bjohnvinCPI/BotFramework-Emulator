@@ -43,6 +43,7 @@ import {
   ActivityFromWebchatPayload,
   RestartConversationStatus,
   RestartConversationStatusPayload,
+  EmulatorModePayload,
 } from '../actions/chatActions';
 import { EditorAction, EditorActions } from '../actions/editorActions';
 
@@ -77,6 +78,7 @@ export interface ChatDocument<I = any> extends Document {
   pendingSpeechTokenRetrieval: boolean;
   ui: DocumentUI;
   replayData: ChatReplayData;
+  isDisabled: boolean;
 }
 
 export interface ChatLog {
@@ -89,6 +91,7 @@ const DEFAULT_STATE: ChatState = {
   transcripts: [],
   webSpeechFactories: {},
   webChatStores: {},
+  restartStatus: {},
 };
 
 export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | EditorAction): ChatState {
@@ -122,7 +125,7 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
         changeKey: state.changeKey + 1,
         chats: {
           ...state.chats,
-          [payload.documentId]: { ...payload, replayData: {} },
+          [payload.documentId]: { ...payload, replayData: {}, isDisabled: false },
         },
       };
       break;
@@ -353,7 +356,21 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
           [documentId]: status,
         },
       };
+      break;
+    }
 
+    case ChatActions.UpdateEmulatorMode: {
+      const { documentId, mode } = action.payload as EmulatorModePayload;
+      state = {
+        ...state,
+        chats: {
+          ...state.chats,
+          [documentId]: {
+            ...state.chats[documentId],
+            mode,
+          },
+        },
+      };
       break;
     }
 
