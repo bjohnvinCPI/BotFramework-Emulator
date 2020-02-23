@@ -53,7 +53,6 @@ import {
   postActivity,
   RestartConversationStatus,
   setRestartConversationStatus,
-  updateEmulatorMode,
 } from '@bfemulator/app-shared';
 import {
   CommandServiceImpl,
@@ -103,12 +102,15 @@ export const getRestartStatus = (state: RootState, documentId: string): RestartC
   if (!state.chat.restartStatus) {
     return undefined;
   }
+  console.log('STATUS', state.chat.restartStatus[documentId]);
   return state.chat.restartStatus[documentId];
 };
 
 export const getCurrentEmulatorMode = (state: RootState, documentId: string): EmulatorMode => {
   return state.chat.chats[documentId].mode;
 };
+
+export const create = (classToInstantiate, ...args) => call(() => new classToInstantiate(...args));
 
 const dispatchActivityToWebchat = (dispatch: Function, postActivity: Activity) => {
   dispatch({
@@ -262,21 +264,21 @@ export class ChatSagas {
   public static *handleReplayIfRequired({ documentId, action, dispatch, meta }: ChannelPayload) {
     const conversationQueue: ConversationQueue | undefined = meta ? meta.conversationQueue : undefined;
     const replayStatus: RestartConversationStatus | undefined = yield select(getRestartStatus, documentId);
+
     if (conversationQueue && conversationQueue.validateIfReplayFlow(replayStatus, action.type)) {
       const activityFlowError: string = yield call(
         [conversationQueue, conversationQueue.incomingActivity],
         action.payload.activity
       );
+
       if (activityFlowError) {
         console.log('Replay Error');
         yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
-        yield put(updateEmulatorMode(meta.currentEmulatorMode, documentId));
         return;
       }
       if (conversationQueue.replayComplete) {
         console.log('Replay complete');
         yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
-        yield put(updateEmulatorMode(meta.currentEmulatorMode, documentId));
         return;
       }
 
@@ -406,7 +408,7 @@ export class ChatSagas {
     }
 
     let conversationId;
-    if (requireNewConversationId) {
+    if (true) {
       conversationId = `${uniqueId()}|${chat.mode}`;
     } else {
       // preserve the current conversation id
@@ -416,9 +418,14 @@ export class ChatSagas {
     let conversationQueue: ConversationQueue;
     const currentEmulatorMode: EmulatorMode = yield select(getCurrentEmulatorMode, documentId);
     if (replayToActivity) {
-      yield put(updateEmulatorMode('replay' as EmulatorMode, documentId));
       yield put(setRestartConversationStatus(RestartConversationStatus.Started, documentId));
-      conversationQueue = new ConversationQueue(activities, chat.replayData, conversationId, replayToActivity);
+      conversationQueue = yield create(
+        ConversationQueue,
+        activities,
+        chat.replayData,
+        conversationId,
+        replayToActivity
+      );
     }
 
     yield put(clearLog(documentId));
@@ -528,9 +535,6 @@ export class ChatSagas {
       }
 
       yield put(updatePendingSpeechTokenRetrieval(documentId, false));
-    }
-    if (replayToActivity) {
-      yield put(updateEmulatorMode('replay' as EmulatorMode, documentId));
     }
   }
 

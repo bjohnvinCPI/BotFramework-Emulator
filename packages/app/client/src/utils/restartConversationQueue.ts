@@ -165,6 +165,7 @@ export class ConversationQueue {
           });
         }
       }
+
       if (this.replayDataFromOldConversation.incomingActivities.length === this.receivedActivities.length) {
         this.isReplayComplete = true;
       }

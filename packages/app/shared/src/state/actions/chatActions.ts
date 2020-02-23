@@ -61,7 +61,6 @@ export enum ChatActions {
   PostActivityEventWc = 'CHAT/POST_ACTIVITY_WEBCHAT',
   IncomingActivityFromWc = 'CHAT/INCOMING_ACTIVITY_WEBCHAT',
   SetRestartConversationStatus = 'CHAT/RESTART/ACTIVITY/STATUS',
-  UpdateEmulatorMode = 'CHAT/EMULATOR/CHANGE_MODE',
 }
 
 export enum RestartConversationStatus {
@@ -78,11 +77,6 @@ export interface ActiveInspectorChangedPayload {
 export interface WebSpeechFactoryPayload {
   documentId: string;
   factory: () => any;
-}
-
-export interface EmulatorModePayload {
-  documentId: string;
-  mode: EmulatorMode;
 }
 
 export interface WebChatStorePayload {
@@ -395,16 +389,6 @@ export function setRestartConversationStatus(
     payload: {
       documentId,
       status,
-    },
-  };
-}
-
-export function updateEmulatorMode(mode: EmulatorMode, documentId: string): ChatAction<EmulatorModePayload> {
-  return {
-    type: ChatActions.UpdateEmulatorMode,
-    payload: {
-      documentId,
-      mode,
     },
   };
 }

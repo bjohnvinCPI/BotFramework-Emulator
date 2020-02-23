@@ -43,7 +43,6 @@ import {
   ActivityFromWebchatPayload,
   RestartConversationStatus,
   RestartConversationStatusPayload,
-  EmulatorModePayload,
 } from '../actions/chatActions';
 import { EditorAction, EditorActions } from '../actions/editorActions';
 
@@ -353,22 +352,8 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
       state = {
         ...state,
         restartStatus: {
+          ...state.restartStatus,
           [documentId]: status,
-        },
-      };
-      break;
-    }
-
-    case ChatActions.UpdateEmulatorMode: {
-      const { documentId, mode } = action.payload as EmulatorModePayload;
-      state = {
-        ...state,
-        chats: {
-          ...state.chats,
-          [documentId]: {
-            ...state.chats[documentId],
-            mode,
-          },
         },
       };
       break;
