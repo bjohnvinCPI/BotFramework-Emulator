@@ -53,6 +53,10 @@ import {
   postActivity,
   RestartConversationStatus,
   setRestartConversationStatus,
+  addNotification,
+  newNotification,
+  beginAdd,
+  NotificationType,
 } from '@bfemulator/app-shared';
 import {
   CommandServiceImpl,
@@ -62,6 +66,9 @@ import {
   uniqueId,
   EmulatorMode,
   User,
+  logEntry,
+  textItem,
+  LogLevel,
 } from '@bfemulator/sdk-shared';
 import { createCognitiveServicesSpeechServicesPonyfillFactory, createDirectLine } from 'botframework-webchat';
 import { createStore as createWebChatStore } from 'botframework-webchat-core';
@@ -69,8 +76,10 @@ import { call, ForkEffect, put, select, takeEvery, fork, take } from 'redux-saga
 import { encode } from 'base64url';
 import { ChatActions } from '@bfemulator/app-shared';
 
+import { logToChat, logService } from '../../platform/log/logService';
 import { RootState } from '../store';
 import { ConversationQueue, WebchatEvents, webchatEventsToWatch } from '../../utils/restartConversationQueue';
+import { LogEntry } from '../../ui/editor/emulator/parts/log/logEntry';
 
 import { createWebchatActivityChannel, WebChatActivityChannel, ChannelPayload } from './webchatActivityChannel';
 
@@ -102,7 +111,6 @@ export const getRestartStatus = (state: RootState, documentId: string): RestartC
   if (!state.chat.restartStatus) {
     return undefined;
   }
-  console.log('STATUS', state.chat.restartStatus[documentId]);
   return state.chat.restartStatus[documentId];
 };
 
@@ -271,13 +279,19 @@ export class ChatSagas {
         action.payload.activity
       );
 
-      if (activityFlowError) {
-        console.log('Replay Error');
+      if (activityFlowError || action.payload.activity.type === WebchatEvents.rejectedActivity) {
         yield put(setRestartConversationStatus(RestartConversationStatus.Rejected, documentId));
+        const errorMessage: string =
+          'There was an error replaying the conversation. ' +
+          'The Bot code seems to have changed causing an error while replaying.';
+
+        yield fork(logService.logToDocument, documentId, logEntry(textItem(LogLevel.Error, errorMessage)));
+
+        const replayErrorNotification = yield call(newNotification, errorMessage, NotificationType.Error);
+        yield put(beginAdd(replayErrorNotification));
         return;
       }
       if (conversationQueue.replayComplete) {
-        console.log('Replay complete');
         yield put(setRestartConversationStatus(RestartConversationStatus.Completed, documentId));
         return;
       }
@@ -408,7 +422,7 @@ export class ChatSagas {
     }
 
     let conversationId;
-    if (true) {
+    if (requireNewConversationId) {
       conversationId = `${uniqueId()}|${chat.mode}`;
     } else {
       // preserve the current conversation id

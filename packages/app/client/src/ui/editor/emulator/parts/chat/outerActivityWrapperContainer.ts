@@ -35,7 +35,6 @@ import { connect } from 'react-redux';
 import { ValueTypes, restartConversation } from '@bfemulator/app-shared';
 import { Action } from 'redux';
 import { Activity } from 'botframework-schema';
-import { executeCommand, SharedConstants } from '@bfemulator/app-shared';
 
 import { RootState } from '../../../../../state';
 import { getActivityTargets } from '../../../../../utils';

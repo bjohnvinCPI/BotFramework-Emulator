@@ -34,6 +34,7 @@
 import * as React from 'react';
 import { SharedConstants } from '@bfemulator/app-shared';
 import { Activity } from 'botframework-schema';
+import { RestartConversationStatus } from '@bfemulator/app-shared';
 
 import { areActivitiesEqual } from '../../../../../utils';
 
@@ -54,6 +55,9 @@ export class OuterActivityWrapper extends React.Component<OuterActivityWrapperPr
   public render() {
     const { card, children, onContextMenu, onItemRendererClick, onItemRendererKeyDown } = this.props;
 
+    const isSelected = this.shouldBeSelected(card.activity);
+    const isUserActivity = this.isUserActivity(card.activity);
+
     return (
       <ActivityWrapper
         activity={card.activity}
@@ -61,8 +65,8 @@ export class OuterActivityWrapper extends React.Component<OuterActivityWrapperPr
         onClick={onItemRendererClick}
         onKeyDown={onItemRendererKeyDown}
         onContextMenu={onContextMenu}
-        isSelected={this.shouldBeSelected(card.activity)}
-        isUserActivity={this.isUserActivity(card.activity)}
+        isSelected={isSelected}
+        isUserActivity={isUserActivity}
         onRestartConversationFromActivityClick={this.propsBoundRestartActivityHandler}
       >
         {children}

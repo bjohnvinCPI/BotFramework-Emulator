@@ -176,6 +176,7 @@ export function chat(state: ChatState = DEFAULT_STATE, action: ChatAction | Edit
         const copy = { ...state };
         copy.changeKey += 1;
         delete copy.chats[documentId];
+        delete copy.restartStatus[documentId];
         state = { ...copy };
       }
       break;

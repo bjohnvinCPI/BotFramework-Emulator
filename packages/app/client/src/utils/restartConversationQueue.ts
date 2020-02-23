@@ -37,6 +37,7 @@ import { ChatReplayData, HasIdAndReplyId } from '@bfemulator/app-shared';
 export enum WebchatEvents {
   postActivity = 'DIRECT_LINE/POST_ACTIVITY',
   incomingActivity = 'DIRECT_LINE/INCOMING_ACTIVITY',
+  rejectedActivity = 'DIRECT_LINE/POST_ACTIVITY_REJECTED',
 }
 
 export const webchatEventsToWatch: string[] = [WebchatEvents.postActivity, WebchatEvents.incomingActivity];

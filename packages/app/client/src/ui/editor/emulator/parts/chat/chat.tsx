@@ -153,6 +153,7 @@ export class Chat extends PureComponent<ChatProps, ChatState> {
         onContextMenu={this.onContextMenu}
         onItemRendererClick={this.onItemRendererClick}
         onItemRendererKeyDown={this.onItemRendererKeyDown}
+        restartStatusForActivity={this.props.restartStatus}
       >
         {next(card)(children)}
       </OuterActivityWrapperContainer>
