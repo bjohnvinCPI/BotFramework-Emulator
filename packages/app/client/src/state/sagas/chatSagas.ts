@@ -144,9 +144,9 @@ const dispatchActivityToWebchat = (dispatch: Function, postActivity: Activity) =
   });
 };
 
-function createDLSpeechBotSniffer(conversationId: string, serverUrl: string) {
+function createDLSpeechBotSniffer(isDLSpeechBot: boolean, conversationId: string, serverUrl: string) {
   return () => next => async action => {
-    if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
+    if (isDLSpeechBot && action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
       const res = await ConversationService.performTrackingForActivity(
         serverUrl,
         conversationId,
@@ -397,7 +397,7 @@ export class ChatSagas {
           documentId,
           createWebChatStore(
             {},
-            createDLSpeechBotSniffer(conversationId, serverUrl),
+            createDLSpeechBotSniffer(isDLSpeechBot, conversationId, serverUrl),
             createReplayActivitySniffer(documentId)
           )
         )
@@ -476,7 +476,7 @@ export class ChatSagas {
     const replayToActivity: Activity = action.payload.activity || undefined;
     const chat: ChatDocument = yield select(getChatFromDocumentId, documentId);
     const serverUrl = yield select(getServerUrl);
-    const isDLSpeechBot = chat.speechKey && chat.speechRegion;
+    const isDLSpeechBot: boolean = !!(chat.speechKey && chat.speechRegion);
     const activities: Activity[] = yield call(
       [ConversationService, ConversationService.fetchActivitiesForAConversation],
       serverUrl,
@@ -514,7 +514,7 @@ export class ChatSagas {
         documentId,
         createWebChatStore(
           {},
-          createDLSpeechBotSniffer(conversationId, serverUrl),
+          createDLSpeechBotSniffer(isDLSpeechBot, conversationId, serverUrl),
           createReplayActivitySniffer(documentId, {
             conversationQueue,
           })
