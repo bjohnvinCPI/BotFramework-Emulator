@@ -523,7 +523,6 @@ export class Conversation extends EventEmitter {
 
   public postage(recipientId: string, activity: Partial<Activity>, isHistoric: boolean = false): Activity {
     const date = moment();
-
     const timestamp = isHistoric ? activity.timestamp : date.toISOString();
     const recipient = isHistoric ? activity.recipient : ({ id: recipientId } as ChannelAccount);
 
@@ -589,7 +588,7 @@ export class Conversation extends EventEmitter {
     this.transcript = [...this.transcript, { type: 'activity add', activity }];
     this.emit('transcriptupdate');
 
-    return activity;
+    return { ...activity };
   }
 
   private addActivityToQueue(activity: Activity) {

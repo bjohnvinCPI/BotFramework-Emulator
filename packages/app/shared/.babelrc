@@ -13,8 +13,7 @@
   "ignore": [
     "**/*.d.ts"
   ],
-  "sourceMaps": "both",
-  "inputSourceMap": true,
+  "sourceMaps": "inline",
   "plugins": [
     "@babel/proposal-class-properties",
     "@babel/plugin-transform-runtime"
